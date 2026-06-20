@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import useProducts from '../../hooks/useProducts';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';

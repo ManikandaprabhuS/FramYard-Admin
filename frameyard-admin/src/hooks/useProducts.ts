@@ -10,7 +10,9 @@ export const useProducts = (autoFetch = false) => {
   const fetchProductById = useProductStore((state) => state.fetchProductById);
   const addProduct = useProductStore((state) => state.addProduct);
   const editProduct = useProductStore((state) => state.editProduct);
-  const removeProduct = useProductStore((state) => state.removeProduct);
+  const addVariant = useProductStore((state) => state.addVariant);
+  const editVariant = useProductStore((state) => state.editVariant);
+  const removeVariant = useProductStore((state) => state.removeVariant);
   const clearCurrentProduct = useProductStore((state) => state.clearCurrentProduct);
 
   useEffect(() => {
@@ -28,7 +30,9 @@ export const useProducts = (autoFetch = false) => {
     fetchProductById,
     addProduct,
     editProduct,
-    removeProduct,
+    addVariant,
+    editVariant,
+    removeVariant,
     clearCurrentProduct,
   };
 };

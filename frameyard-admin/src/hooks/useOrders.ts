@@ -6,7 +6,6 @@ export const useOrders = (autoFetch = false) => {
   const loading = useOrderStore((state) => state.loading);
   const error = useOrderStore((state) => state.error);
   const fetchOrders = useOrderStore((state) => state.fetchOrders);
-  const addOrder = useOrderStore((state) => state.addOrder);
   const changeOrderStatus = useOrderStore((state) => state.changeOrderStatus);
 
   useEffect(() => {
@@ -20,7 +19,6 @@ export const useOrders = (autoFetch = false) => {
     loading,
     error,
     fetchOrders,
-    addOrder,
     changeOrderStatus,
   };
 };

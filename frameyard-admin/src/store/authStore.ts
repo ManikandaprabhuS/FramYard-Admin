@@ -22,18 +22,52 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: false,
   error: null,
 
-  login: async (email, password) => {
-    set({ loading: true, error: null });
-    try {
-      const { user, token } = await authService.login(email, password);
-      set({ user, token, isAuthenticated: true, loading: false });
-      return true;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Login failed';
-      set({ error: errMsg, loading: false });
+ login: async (email, password) => {
+  set({
+    loading: true,
+    error: null,
+  });
+
+  try {
+
+    const response = await authService.login(
+        email,
+        password
+      );
+
+    if (!response.success || !response.session?.access_token) {
+      set({
+        error: response.message || "Login failed",
+        loading: false,
+      });
       return false;
     }
-  },
+
+    const user = response.user;
+    const token = response.session.access_token;
+
+    localStorage.setItem(
+      "fy_auth_token",
+      token
+    );
+    set({
+      user,
+      token,
+      isAuthenticated: true,
+      loading: false,
+    });
+    return true;
+  } catch (err: any) {
+    const errMsg =
+      err.response?.data?.message ||
+      "Login failed";
+    set({
+      error: errMsg,
+      loading: false,
+    });
+    return false;
+  }
+},
 
   logout: async () => {
     set({ loading: true });
@@ -46,20 +80,52 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('fy_auth_token');
-    if (!token) {
-      set({ isAuthenticated: false, user: null, loading: false });
-      return;
-    }
-    set({ loading: true });
-    try {
-      const user = await authService.me();
-      set({ user, isAuthenticated: true, loading: false });
-    } catch (err) {
-      localStorage.removeItem('fy_auth_token');
-      set({ user: null, token: null, isAuthenticated: false, loading: false });
-    }
-  },
+
+  const token =
+    localStorage.getItem(
+      "fy_auth_token"
+    );
+
+  if (!token) {
+
+    set({
+      isAuthenticated: false,
+      user: null,
+      loading: false,
+    });
+
+    return;
+  }
+
+  set({
+    loading: true,
+  });
+
+  try {
+
+    const user =
+      await authService.me();
+
+    set({
+      user,
+      token,
+      isAuthenticated: true,
+      loading: false,
+    });
+
+  } catch (err) {
+    localStorage.removeItem(
+      "fy_auth_token"
+    );
+
+    set({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      loading: false,
+    });
+  }
+},
 
   updateProfile: async (profileData) => {
     set({ loading: true, error: null });

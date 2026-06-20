@@ -2,54 +2,92 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
-  avatarUrl: string;
+  isEmailVerified: boolean;
+  phoneNumber: string;
+  addressLine?: string | null;
+  postalCode?: string | null;
+  cityName?: string | null;
+  stateName?: string | null;
+  countryName?: string | null;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+  role: 'CUSTOMER' | 'ADMIN';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  avatarUrl?: string;
 }
 
 export type ProductStatus = 'active' | 'draft';
 
 export interface ProductVariant {
   id: string;
-  size: string;
-  border: string;
+  productId: string;
+  frameSize: string;
+  hasBorder: boolean;
+  hasGlass: boolean;
   price: number;
-  offerPrice?: number;
-  stock: number;
+  offerPrice?: number | null;
+  stockQuantity: number;
+  priceValidUntil?: string | null;
+  createdAt: string;
 }
-
+export interface ProductImage {
+  id: string;
+  productId: string;
+  imageUrl: string;
+  displayOrder: number;
+}
 export interface Product {
   id: string;
   name: string;
-  description: string;
-  brand: string;
+  description?: string;
+  brandName: string;
   material: string;
-  colors: string[]; // e.g. ["#slate-900", "#amber-100"] or color names/values
-  variants: ProductVariant[];
-  status: ProductStatus;
-  createdDate: string;
-  images: string[]; // URLs of product images
-}
+  availableColors: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 
-export type OrderStatus = 'pending' | 'processing' | 'delivered' | 'cancelled';
+  variants: ProductVariant[];
+  images?: ProductImage[];
+}
+export type OrderStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'PROCESSING'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED';
 
 export interface OrderItem {
   id: string;
+  orderId: string;
+  productId?: string | null;
+  variantId?: string | null;
   productName: string;
-  variantName: string;
+  frameSize: string;
+  hasBorder: boolean;
+  hasGlass: boolean;
   quantity: number;
   price: number;
+  subtotal: number;
 }
 
 export interface Order {
   id: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  itemsCount: number;
-  amount: number;
-  status: OrderStatus;
-  date: string;
-  items: OrderItem[];
+  userId: string;
+  totalAmount: number;
+  orderStatus: OrderStatus;
+  phoneNumber: string;
+  addressLine: string;
+  cityName: string;
+  stateName: string;
+  countryName: string;
+  postalCode: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: Pick<User, 'name' | 'email' | 'phoneNumber'>;
+  orderItems: OrderItem[];
 }
 
 export type CustomerStatus = 'active' | 'new' | 'inactive';

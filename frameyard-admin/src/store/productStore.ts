@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Product } from '../types';
-import { productService } from '../services/product.service';
+import { ProductPayload, productService, VariantPayload } from '../services/product.service';
 
 interface ProductState {
   products: Product[];
@@ -9,9 +9,11 @@ interface ProductState {
   error: string | null;
   fetchProducts: () => Promise<void>;
   fetchProductById: (id: string) => Promise<void>;
-  addProduct: (product: Omit<Product, 'id' | 'createdDate'>) => Promise<boolean>;
-  editProduct: (id: string, product: Partial<Product>) => Promise<boolean>;
-  removeProduct: (id: string) => Promise<boolean>;
+  addProduct: (product: ProductPayload) => Promise<Product | null>;
+  editProduct: (id: string, product: ProductPayload) => Promise<boolean>;
+  addVariant: (productId: string, variant: VariantPayload) => Promise<boolean>;
+  editVariant: (variantId: string, variant: VariantPayload) => Promise<boolean>;
+  removeVariant: (variantId: string) => Promise<boolean>;
   clearCurrentProduct: () => void;
 }
 
@@ -49,10 +51,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
         products: [...state.products, newProd],
         loading: false,
       }));
-      return true;
+      return newProd;
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to add product', loading: false });
-      return false;
+      return null;
     }
   },
 
@@ -72,18 +74,69 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
 
-  removeProduct: async (id) => {
+  addVariant: async (productId, variant) => {
     set({ loading: true, error: null });
     try {
-      await productService.deleteProduct(id);
+      await productService.createVariant(productId, variant);
+      const product = await productService.getProductById(productId);
       set((state) => ({
-        products: state.products.filter((p) => p.id !== id),
-        currentProduct: state.currentProduct?.id === id ? null : state.currentProduct,
+        currentProduct: product,
+        products: state.products.map((p) => (p.id === productId ? product : p)),
         loading: false,
       }));
       return true;
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to delete product', loading: false });
+      set({ error: err.response?.data?.message || 'Failed to add variant', loading: false });
+      return false;
+    }
+  },
+
+  editVariant: async (variantId, variant) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedVariant = await productService.updateVariant(variantId, variant);
+      set((state) => ({
+        products: state.products.map((product) => ({
+          ...product,
+          variants: product.variants.map((item) => (item.id === variantId ? updatedVariant : item)),
+        })),
+        currentProduct: state.currentProduct
+          ? {
+              ...state.currentProduct,
+              variants: state.currentProduct.variants.map((item) =>
+                item.id === variantId ? updatedVariant : item
+              ),
+            }
+          : null,
+        loading: false,
+      }));
+      return true;
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to update variant', loading: false });
+      return false;
+    }
+  },
+
+  removeVariant: async (variantId) => {
+    set({ loading: true, error: null });
+    try {
+      await productService.deleteVariant(variantId);
+      set((state) => ({
+        products: state.products.map((product) => ({
+          ...product,
+          variants: product.variants.filter((item) => item.id !== variantId),
+        })),
+        currentProduct: state.currentProduct
+          ? {
+              ...state.currentProduct,
+              variants: state.currentProduct.variants.filter((item) => item.id !== variantId),
+            }
+          : null,
+        loading: false,
+      }));
+      return true;
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to delete variant', loading: false });
       return false;
     }
   },

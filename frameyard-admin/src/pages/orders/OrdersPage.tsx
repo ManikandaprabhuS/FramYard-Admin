@@ -7,7 +7,7 @@ import { Search, Calendar, Filter, Plus, ArrowRight, Eye, Mail, Phone, ShoppingC
 import { Order, OrderStatus } from '../../types';
 
 export const OrdersPage: React.FC = () => {
-  const { orders, loading, fetchOrders, changeOrderStatus, addOrder } = useOrders(true);
+  const { orders, loading, fetchOrders, changeOrderStatus } = useOrders(true);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,11 +30,11 @@ export const OrdersPage: React.FC = () => {
   }, [fetchOrders]);
 
   // KPI Calculations
-  const totalCount = orders.length + 1244;
-  const pendingCount = orders.filter(o => o.status === 'pending').length + 41;
-  const processingCount = orders.filter(o => o.status === 'processing').length + 84;
-  const deliveredCount = orders.filter(o => o.status === 'delivered').length + 1092;
-  const cancelledCount = orders.filter(o => o.status === 'cancelled').length + 24;
+  const totalCount = orders.length;
+  const pendingCount = orders.filter(o => o.orderStatus === 'PENDING').length;
+  const processingCount = orders.filter(o => o.orderStatus === 'PROCESSING').length;
+  const deliveredCount = orders.filter(o => o.orderStatus === 'DELIVERED').length;
+  const cancelledCount = orders.filter(o => o.orderStatus === 'CANCELLED').length;
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     await changeOrderStatus(orderId, newStatus);
@@ -47,66 +47,56 @@ export const OrdersPage: React.FC = () => {
 
   // Filtered Orders
   const filteredOrders = orders.filter(o => {
+    const customerName = o.user?.name || '';
+    const customerEmail = o.user?.email || '';
+    const customerPhone = o.user?.phoneNumber || o.phoneNumber || '';
     const matchesSearch = 
       o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customerPhone.includes(searchTerm);
+      customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerPhone.includes(searchTerm);
       
     const matchesStatus = 
       statusFilter === 'all' || 
-      o.status === statusFilter;
+      o.orderStatus === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!custName || !custEmail || !orderAmount) return;
-
-    const payload = {
-      customerName: custName,
-      customerEmail: custEmail,
-      customerPhone: custPhone || 'Not Provided',
-      itemsCount: parseInt(itemsCount) || 1,
-      amount: parseFloat(orderAmount),
-      status: 'pending' as const,
-      items: [
-        {
-          id: 'oi-' + Math.random().toString(36).substr(2, 5),
-          productName: 'Nordic Oak Gallery',
-          variantName: '11" x 14" (Natural Oak)',
-          quantity: parseInt(itemsCount) || 1,
-          price: parseFloat(orderAmount) / (parseInt(itemsCount) || 1),
-        }
-      ]
-    };
-
-    const success = await addOrder(payload);
-    if (success) {
-      setNewOrderModalOpen(false);
-      setCustName('');
-      setCustEmail('');
-      setCustPhone('');
-      setItemsCount('1');
-      setOrderAmount('');
-    }
+    setNewOrderModalOpen(false);
+    setCustName('');
+    setCustEmail('');
+    setCustPhone('');
+    setItemsCount('1');
+    setOrderAmount('');
   };
 
   const getDropdownStyles = (status: OrderStatus) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
+      case 'CONFIRMED':
         return 'bg-surface-container-highest text-on-surface';
-      case 'processing':
+      case 'PROCESSING':
+      case 'SHIPPED':
         return 'bg-primary-container text-on-primary-container';
-      case 'delivered':
+      case 'DELIVERED':
         return 'bg-tertiary-container text-on-tertiary-container';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'bg-error-container text-on-error-container';
       default:
         return 'bg-surface text-on-surface';
     }
   };
+
+  const getCustomerName = (order: Order) => order.user?.name || 'Unknown Customer';
+  const getCustomerEmail = (order: Order) => order.user?.email || 'No email';
+  const getCustomerPhone = (order: Order) => order.user?.phoneNumber || order.phoneNumber;
+  const getItemsCount = (order: Order) =>
+    order.orderItems.reduce((sum, item) => sum + item.quantity, 0);
+  const getVariantName = (item: Order['orderItems'][number]) =>
+    `${item.frameSize} (${item.hasBorder ? 'Border' : 'No Border'}, ${item.hasGlass ? 'Glass' : 'No Glass'})`;
 
   const headers = [
     { key: 'id', label: 'Order ID', w: '24' },
@@ -211,10 +201,12 @@ export const OrdersPage: React.FC = () => {
                 className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs text-on-surface focus:border-primary outline-none cursor-pointer"
               >
                 <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="PENDING">Pending</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="SHIPPED">Shipped</option>
+                <option value="DELIVERED">Delivered</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
 
@@ -248,28 +240,30 @@ export const OrdersPage: React.FC = () => {
                 {order.id}
               </td>
               <td className="px-6 py-4">
-                <div className="font-semibold text-on-surface">{order.customerName}</div>
-                <div className="text-[11px] text-secondary mt-0.5">{order.customerEmail}</div>
+                <div className="font-semibold text-on-surface">{getCustomerName(order)}</div>
+                <div className="text-[11px] text-secondary mt-0.5">{getCustomerEmail(order)}</div>
               </td>
-              <td className="px-6 py-4 text-on-surface-variant">{order.customerPhone}</td>
-              <td className="px-6 py-4 text-right font-medium">{order.itemsCount}</td>
-              <td className="px-6 py-4 text-right font-bold text-on-surface">${order.amount.toFixed(2)}</td>
+              <td className="px-6 py-4 text-on-surface-variant">{getCustomerPhone(order)}</td>
+              <td className="px-6 py-4 text-right font-medium">{getItemsCount(order)}</td>
+              <td className="px-6 py-4 text-right font-bold text-on-surface">${Number(order.totalAmount).toFixed(2)}</td>
               <td className="px-6 py-4">
                 {/* Styled Select Dropdown matching Stitch badge layout */}
                 <select
-                  value={order.status}
+                  value={order.orderStatus}
                   onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
                   className={`text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1 border-none focus:ring-2 focus:ring-primary outline-none cursor-pointer appearance-none text-center ${getDropdownStyles(
-                    order.status
+                    order.orderStatus
                   )}`}
                 >
-                  <option value="pending">Pending</option>
-                  <option value="processing">Processing</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="PROCESSING">Processing</option>
+                  <option value="SHIPPED">Shipped</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="CANCELLED">Cancelled</option>
                 </select>
               </td>
-              <td className="px-6 py-4 text-on-surface-variant">{new Date(order.date).toLocaleDateString()}</td>
+              <td className="px-6 py-4 text-on-surface-variant">{new Date(order.createdAt).toLocaleDateString()}</td>
               <td className="px-6 py-4 text-right">
                 <button 
                   onClick={() => openOrderDetails(order)}
@@ -293,36 +287,38 @@ export const OrdersPage: React.FC = () => {
                   >
                     {order.id}
                   </span>
-                  <div className="text-sm font-semibold text-on-surface mt-1">{order.customerName}</div>
+                  <div className="text-sm font-semibold text-on-surface mt-1">{getCustomerName(order)}</div>
                 </div>
                 {/* Status select dropdown on mobile card */}
                 <select
-                  value={order.status}
+                  value={order.orderStatus}
                   onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
                   className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 border-none focus:ring-2 focus:ring-primary outline-none cursor-pointer ${getDropdownStyles(
-                    order.status
+                    order.orderStatus
                   )}`}
                 >
-                  <option value="pending">Pending</option>
-                  <option value="processing">Processing</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="PROCESSING">Processing</option>
+                  <option value="SHIPPED">Shipped</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-on-surface-variant pt-1">
                 <div>
                   <span className="block text-[10px] text-on-surface-variant/60 uppercase font-semibold">Date</span>
-                  <span className="font-medium text-on-surface">{new Date(order.date).toLocaleDateString()}</span>
+                  <span className="font-medium text-on-surface">{new Date(order.createdAt).toLocaleDateString()}</span>
                 </div>
                 <div>
                   <span className="block text-[10px] text-on-surface-variant/60 uppercase font-semibold">Total Amount</span>
-                  <span className="font-bold text-on-surface">${order.amount.toFixed(2)}</span>
+                  <span className="font-bold text-on-surface">${Number(order.totalAmount).toFixed(2)}</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-outline-variant/40">
-                <span className="text-xs text-on-surface-variant">{order.itemsCount} Items purchased</span>
+                <span className="text-xs text-on-surface-variant">{getItemsCount(order)} Items purchased</span>
                 <button 
                   onClick={() => openOrderDetails(order)}
                   className="flex items-center gap-1 text-xs text-primary font-semibold hover:underline"
@@ -352,20 +348,20 @@ export const OrdersPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-xs text-on-surface-variant/70 block">Name</span>
-                  <span className="font-semibold text-on-surface mt-0.5 block">{selectedOrder.customerName}</span>
+                  <span className="font-semibold text-on-surface mt-0.5 block">{getCustomerName(selectedOrder)}</span>
                 </div>
                 <div>
                   <span className="text-xs text-on-surface-variant/70 block">Email Address</span>
                   <span className="font-semibold text-on-surface mt-0.5 block flex items-center gap-1.5">
                     <Mail className="w-3.5 h-3.5 text-on-surface-variant" />
-                    {selectedOrder.customerEmail}
+                    {getCustomerEmail(selectedOrder)}
                   </span>
                 </div>
                 <div>
                   <span className="text-xs text-on-surface-variant/70 block">Phone Number</span>
                   <span className="font-semibold text-on-surface mt-0.5 block flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-on-surface-variant" />
-                    {selectedOrder.customerPhone}
+                    {getCustomerPhone(selectedOrder)}
                   </span>
                 </div>
               </div>
@@ -375,11 +371,11 @@ export const OrdersPage: React.FC = () => {
             <div>
               <h4 className="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-3">Items Purchased</h4>
               <div className="border border-outline-variant rounded-xl overflow-hidden divide-y divide-outline-variant/40 bg-surface-container-lowest">
-                {selectedOrder.items.map((item, idx) => (
+                {selectedOrder.orderItems.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center p-4">
                     <div>
                       <p className="text-sm font-semibold text-on-surface">{item.productName}</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">Variant: {item.variantName}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Variant: {getVariantName(item)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-on-surface">${item.price.toFixed(2)}</p>
@@ -395,13 +391,13 @@ export const OrdersPage: React.FC = () => {
               <div>
                 <span className="text-xs text-on-surface-variant block">Order Date</span>
                 <span className="text-sm font-medium text-on-surface mt-0.5 block">
-                  {new Date(selectedOrder.date).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                  {new Date(selectedOrder.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-xs text-on-surface-variant block">Total Price</span>
                 <span className="text-lg font-bold text-primary mt-0.5 block">
-                  ${selectedOrder.amount.toFixed(2)}
+                  ${Number(selectedOrder.totalAmount).toFixed(2)}
                 </span>
               </div>
             </div>

@@ -1,29 +1,35 @@
 import api from './api';
-import { Order, OrderStatus } from '../types';
+import { Order, OrderItem, OrderStatus } from '../types';
+
+const normalizeOrderItem = (item: any): OrderItem => ({
+  ...item,
+  price: Number(item.price),
+  subtotal: Number(item.subtotal),
+});
+
+const normalizeOrder = (order: any): Order => ({
+  ...order,
+  totalAmount: Number(order.totalAmount),
+  orderItems: Array.isArray(order.orderItems)
+    ? order.orderItems.map(normalizeOrderItem)
+    : [],
+});
 
 export const orderService = {
   getOrders: async (): Promise<Order[]> => {
-    const response = await api.get('/orders');
-    return response.data;
+    const response = await api.get('/orders/admin');
+    return (response.data.orders || []).map(normalizeOrder);
   },
 
   getOrderById: async (id: string): Promise<Order> => {
     const response = await api.get(`/orders/${id}`);
-    return response.data;
-  },
-
-  createOrder: async (order: Omit<Order, 'id' | 'date'>): Promise<Order> => {
-    const response = await api.post('/orders', order);
-    return response.data;
-  },
-
-  updateOrder: async (id: string, order: Partial<Order>): Promise<Order> => {
-    const response = await api.put(`/orders/${id}`, order);
-    return response.data;
+    return normalizeOrder(response.data.order);
   },
 
   updateOrderStatus: async (id: string, status: OrderStatus): Promise<Order> => {
-    const response = await api.put(`/orders/${id}`, { status });
-    return response.data;
+    const response = await api.patch(`/orders/admin/${id}/status`, {
+      orderStatus: status,
+    });
+    return normalizeOrder(response.data.order);
   },
 };

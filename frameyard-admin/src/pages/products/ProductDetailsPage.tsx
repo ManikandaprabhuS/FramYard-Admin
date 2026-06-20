@@ -4,7 +4,19 @@ import useProducts from '../../hooks/useProducts';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import { ArrowLeft, Plus, Edit2, Trash2, Image as ImageIcon, Upload, Info } from 'lucide-react';
-import { Product, ProductVariant, ProductStatus } from '../../types';
+import { ProductStatus } from '../../types';
+
+type VariantForm = {
+  id: string;
+  productId?: string;
+  frameSize: string;
+  hasBorder: boolean;
+  hasGlass: boolean;
+  price: number;
+  offerPrice?: number | null;
+  stockQuantity: number;
+  priceValidUntil?: string | null;
+};
 
 export const ProductDetailsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +30,9 @@ export const ProductDetailsPage: React.FC = () => {
     fetchProductById, 
     addProduct, 
     editProduct, 
+    addVariant,
+    editVariant,
+    removeVariant,
     clearCurrentProduct 
   } = useProducts();
 
@@ -28,12 +43,12 @@ export const ProductDetailsPage: React.FC = () => {
   const [material, setMaterial] = useState('Solid Oak');
   const [colors, setColors] = useState<string[]>([]);
   const [status, setStatus] = useState<ProductStatus>('active');
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variants, setVariants] = useState<VariantForm[]>([]);
   const [images, setImages] = useState<string[]>([]);
 
   // Variant Modal State
   const [variantModalOpen, setVariantModalOpen] = useState(false);
-  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  const [editingVariant, setEditingVariant] = useState<VariantForm | null>(null);
   const [varSize, setVarSize] = useState('');
   const [varBorder, setVarBorder] = useState('');
   const [varPrice, setVarPrice] = useState('');
@@ -66,34 +81,45 @@ export const ProductDetailsPage: React.FC = () => {
   useEffect(() => {
     if (!isNew && currentProduct) {
       setName(currentProduct.name);
-      setDescription(currentProduct.description);
-      setBrand(currentProduct.brand);
+      setDescription(currentProduct.description || '');
+      setBrand(currentProduct.brandName);
       setMaterial(currentProduct.material);
-      setColors(currentProduct.colors);
-      setStatus(currentProduct.status);
+      setColors(currentProduct.availableColors || []);
+      setStatus(currentProduct.isActive ? 'active' : 'draft');
       setVariants(currentProduct.variants);
-      setImages(currentProduct.images);
+      setImages((currentProduct.images || []).map((image) => image.imageUrl));
     }
   }, [currentProduct, isNew]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !description || !brand) return;
+    if (!name || !material) return;
 
     const payload = {
       name,
       description,
-      brand,
       material,
-      colors,
-      status,
-      variants,
-      images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=400'],
+      availableColors: colors,
+      isActive: status === 'active',
     };
 
     let success = false;
     if (isNew) {
-      success = await addProduct(payload);
+      const product = await addProduct(payload);
+      if (product) {
+        for (const variant of variants) {
+          await addVariant(product.id, {
+            frameSize: variant.frameSize,
+            hasBorder: variant.hasBorder,
+            hasGlass: variant.hasGlass,
+            price: variant.price,
+            offerPrice: variant.offerPrice,
+            stockQuantity: variant.stockQuantity,
+            priceValidUntil: variant.priceValidUntil,
+          });
+        }
+        success = true;
+      }
     } else if (id) {
       success = await editProduct(id, payload);
     }
@@ -123,27 +149,50 @@ export const ProductDetailsPage: React.FC = () => {
     setVariantModalOpen(true);
   };
 
-  const openEditVariant = (variant: ProductVariant) => {
+  const openEditVariant = (variant: VariantForm) => {
     setEditingVariant(variant);
-    setVarSize(variant.size);
-    setVarBorder(variant.border);
+    setVarSize(variant.frameSize);
+    setVarBorder(variant.hasBorder ? 'Border' : '');
     setVarPrice(variant.price.toString());
     setVarOfferPrice(variant.offerPrice?.toString() || '');
-    setVarStock(variant.stock.toString());
+    setVarStock(variant.stockQuantity.toString());
     setVariantModalOpen(true);
   };
 
-  const handleSaveVariant = () => {
+  const handleSaveVariant = async () => {
     if (!varSize || !varPrice || !varStock) return;
 
-    const newVariant: ProductVariant = {
+    const newVariant: VariantForm = {
       id: editingVariant?.id || 'v-' + Math.random().toString(36).substr(2, 5),
-      size: varSize,
-      border: varBorder || 'None',
+      productId: editingVariant?.productId || id,
+      frameSize: varSize,
+      hasBorder: Boolean(varBorder),
+      hasGlass: true,
       price: parseFloat(varPrice),
-      offerPrice: varOfferPrice ? parseFloat(varOfferPrice) : undefined,
-      stock: parseInt(varStock),
+      offerPrice: varOfferPrice ? parseFloat(varOfferPrice) : null,
+      stockQuantity: parseInt(varStock),
+      priceValidUntil: editingVariant?.priceValidUntil || null,
     };
+
+    if (!isNew && id) {
+      const payload = {
+        frameSize: newVariant.frameSize,
+        hasBorder: newVariant.hasBorder,
+        hasGlass: newVariant.hasGlass,
+        price: newVariant.price,
+        offerPrice: newVariant.offerPrice,
+        stockQuantity: newVariant.stockQuantity,
+        priceValidUntil: newVariant.priceValidUntil,
+      };
+      const saved = editingVariant
+        ? await editVariant(editingVariant.id, payload)
+        : await addVariant(id, payload);
+      if (saved) {
+        await fetchProductById(id);
+      }
+      setVariantModalOpen(false);
+      return;
+    }
 
     if (editingVariant) {
       setVariants(variants.map(v => v.id === editingVariant.id ? newVariant : v));
@@ -153,7 +202,14 @@ export const ProductDetailsPage: React.FC = () => {
     setVariantModalOpen(false);
   };
 
-  const handleDeleteVariant = (variantId: string) => {
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!isNew && id) {
+      const removed = await removeVariant(variantId);
+      if (removed) {
+        await fetchProductById(id);
+      }
+      return;
+    }
     setVariants(variants.filter(v => v.id !== variantId));
   };
 
@@ -382,8 +438,10 @@ export const ProductDetailsPage: React.FC = () => {
                   ) : (
                     variants.map((v) => (
                       <tr key={v.id} className="hover:bg-surface transition-colors">
-                        <td className="px-6 py-4 font-semibold text-on-surface">{v.size}</td>
-                        <td className="px-6 py-4 text-on-surface-variant">{v.border}</td>
+                        <td className="px-6 py-4 font-semibold text-on-surface">{v.frameSize}</td>
+                        <td className="px-6 py-4 text-on-surface-variant">
+                          {v.hasBorder ? 'Border' : 'No Border'} / {v.hasGlass ? 'Glass' : 'No Glass'}
+                        </td>
                         <td className="px-6 py-4 font-semibold">
                           <div className="flex flex-col">
                             <span>${v.price.toFixed(2)}</span>
@@ -393,8 +451,8 @@ export const ProductDetailsPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 font-medium">
-                          <span className={v.stock <= 5 ? 'text-error font-bold' : 'text-on-surface'}>
-                            {v.stock} units
+                          <span className={v.stockQuantity <= 5 ? 'text-error font-bold' : 'text-on-surface'}>
+                            {v.stockQuantity} units
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">

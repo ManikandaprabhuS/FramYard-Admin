@@ -25,6 +25,7 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { notifications, fetchNotifications, toggleNotificationRead } = useNotifications(true);
+  const avatarInitial = user?.name?.charAt(0) || 'U';
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -112,11 +113,9 @@ export const AdminLayout: React.FC = () => {
           <div className="mt-auto px-4 pt-4 border-t border-outline-variant">
             <div className="flex items-center justify-between">
               <Link to="/admin/profile" className="flex items-center gap-3 py-1 group">
-                <img
-                  src={user.avatarUrl}
-                  alt={user.name}
-                  className="w-10 h-10 rounded-full object-cover border border-outline-variant group-hover:ring-2 group-hover:ring-primary transition-all duration-200"
-                />
+                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold border border-outline-variant group-hover:ring-2 group-hover:ring-primary transition-all duration-200">
+                  {avatarInitial}
+                </div>
                 <div className="text-left max-w-[120px]">
                   <p className="text-sm font-semibold text-on-surface truncate leading-tight group-hover:text-primary">{user.name}</p>
                   <p className="text-[11px] text-on-surface-variant truncate mt-0.5">{user.role}</p>
@@ -192,11 +191,9 @@ export const AdminLayout: React.FC = () => {
         {user && (
           <div className="mt-auto px-4 pt-4 border-t border-outline-variant flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img
-                src={user.avatarUrl}
-                alt={user.name}
-                className="w-10 h-10 rounded-full object-cover border border-outline-variant"
-              />
+              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold border border-outline-variant">
+                {avatarInitial}
+              </div>
               <div className="text-left">
                 <p className="text-sm font-semibold text-on-surface leading-none">{user.name}</p>
                 <p className="text-[11px] text-on-surface-variant mt-1">{user.role}</p>
@@ -309,12 +306,8 @@ export const AdminLayout: React.FC = () => {
 
             {/* Profile Avatar click */}
             {user && (
-              <Link to="/admin/profile" className="w-8 h-8 rounded-full bg-surface-variant border border-outline-variant overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all">
-                <img
-                  alt={user.name}
-                  className="w-full h-full object-cover"
-                  src={user.avatarUrl}
-                />
+              <Link to="/admin/profile" className="w-8 h-8 rounded-full bg-surface-variant border border-outline-variant overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all flex items-center justify-center text-xs font-bold text-primary">
+                {avatarInitial}
               </Link>
             )}
 

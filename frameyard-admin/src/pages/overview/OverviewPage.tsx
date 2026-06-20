@@ -24,17 +24,6 @@ import {
   Tooltip
 } from 'recharts';
 
-// Mock chart data for 30 days
-const chartData = [
-  { day: '01 Jun', revenue: 3000 },
-  { day: '05 Jun', revenue: 4200 },
-  { day: '10 Jun', revenue: 3800 },
-  { day: '15 Jun', revenue: 5100 },
-  { day: '20 Jun', revenue: 4900 },
-  { day: '25 Jun', revenue: 6200 },
-  { day: '30 Jun', revenue: 7500 },
-];
-
 export const OverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { products, fetchProducts, loading: loadingProducts } = useProducts(true);
@@ -47,18 +36,27 @@ export const OverviewPage: React.FC = () => {
     fetchCustomers();
   }, [fetchProducts, fetchOrders, fetchCustomers]);
 
-  // Dynamic calculations based on seeded base + local updates
-  const baseRevenue = 122339.50;
-  const calculatedRevenue = baseRevenue + orders.reduce((sum, o) => o.status !== 'cancelled' ? sum + o.amount : sum, 0);
-  
-  const baseOrders = 1280;
-  const calculatedOrders = baseOrders + orders.length;
+  const calculatedRevenue = orders.reduce(
+    (sum, o) => (o.orderStatus !== 'CANCELLED' ? sum + Number(o.totalAmount || 0) : sum),
+    0
+  );
+  const calculatedOrders = orders.length;
+  const calculatedCustomers = customers.length;
+  const calculatedProducts = products.filter((product) => product.isActive).length;
 
-  const baseCustomers = 8428;
-  const calculatedCustomers = baseCustomers + customers.length;
+  const revenueByDay = orders.reduce<Record<string, number>>((acc, order) => {
+    if (order.orderStatus === 'CANCELLED') return acc;
+    const day = new Date(order.createdAt).toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+    });
+    acc[day] = (acc[day] || 0) + Number(order.totalAmount || 0);
+    return acc;
+  }, {});
 
-  const baseProducts = 339;
-  const calculatedProducts = baseProducts + products.length;
+  const chartData = Object.entries(revenueByDay)
+    .map(([day, revenue]) => ({ day, revenue }))
+    .slice(-7);
 
   // Recent 4 orders
   const recentOrders = orders.slice(0, 4);
@@ -67,38 +65,32 @@ export const OverviewPage: React.FC = () => {
   const lowStockAlerts = products
     .flatMap(p => p.variants.map(v => ({
       name: p.name,
-      variantName: v.size,
-      stock: v.stock,
+      variantName: v.frameSize,
+      stock: v.stockQuantity,
       productId: p.id,
-      status: v.stock === 0 ? 'Out of Stock' : v.stock <= 5 ? 'Critical' : 'Low'
+      status: v.stockQuantity === 0 ? 'Out of Stock' : v.stockQuantity <= 5 ? 'Critical' : 'Low'
     })))
     .filter(item => item.stock <= 15)
     .slice(0, 4);
 
-  // Fallbacks if database variants don't match, seed default low stocks
-  const displayLowStock = lowStockAlerts.length > 0 ? lowStockAlerts : [
-    { name: 'Classic Oak Frame', variantName: '18x24', stock: 2, status: 'Critical', productId: '1' },
-    { name: 'Matte Black Gallery', variantName: 'A3', stock: 8, status: 'Low', productId: '2' },
-    { name: 'Walnut Float Frame', variantName: 'Custom', stock: 12, status: 'Low', productId: '3' },
-    { name: 'Acrylic Box Frame', variantName: 'Square 12x12', stock: 0, status: 'Out of Stock', productId: '1' }
-  ];
+  const displayLowStock = lowStockAlerts;
 
   // Order Fulfillment quantities
-  const pendingCount = orders.filter(o => o.status === 'pending').length + 42;
-  const processingCount = orders.filter(o => o.status === 'processing').length + 18;
-  const shippedCount = orders.filter(o => o.status === 'delivered').length + 156; // Mock shipping representation
-  const deliveredCount = 890;
-  const cancelledCount = orders.filter(o => o.status === 'cancelled').length + 12;
+  const pendingCount = orders.filter(o => o.orderStatus === 'PENDING').length;
+  const processingCount = orders.filter(o => o.orderStatus === 'PROCESSING').length;
+  const shippedCount = orders.filter(o => o.orderStatus === 'SHIPPED').length;
+  const deliveredCount = orders.filter(o => o.orderStatus === 'DELIVERED').length;
+  const cancelledCount = orders.filter(o => o.orderStatus === 'CANCELLED').length;
 
   const getOrderStatusBadge = (status: string) => {
     switch (status) {
-      case 'delivered':
+      case 'DELIVERED':
         return <Badge type="success">Delivered</Badge>;
-      case 'processing':
+      case 'PROCESSING':
         return <Badge type="info">Processing</Badge>;
-      case 'pending':
+      case 'PENDING':
         return <Badge type="warning">Pending</Badge>;
-      case 'cancelled':
+      case 'CANCELLED':
         return <Badge type="error">Cancelled</Badge>;
       default:
         return <Badge type="neutral">{status}</Badge>;
@@ -265,9 +257,9 @@ export const OverviewPage: React.FC = () => {
                 {recentOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-surface transition-colors">
                     <td className="p-4 font-semibold text-primary">{order.id}</td>
-                    <td className="p-4 text-on-surface-variant">{order.customerName}</td>
-                    <td className="p-4 text-right font-semibold">${order.amount.toFixed(2)}</td>
-                    <td className="p-4">{getOrderStatusBadge(order.status)}</td>
+                    <td className="p-4 text-on-surface-variant">{order.user?.name || 'Unknown Customer'}</td>
+                    <td className="p-4 text-right font-semibold">${Number(order.totalAmount).toFixed(2)}</td>
+                    <td className="p-4">{getOrderStatusBadge(order.orderStatus)}</td>
                   </tr>
                 ))}
               </tbody>

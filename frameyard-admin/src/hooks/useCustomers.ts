@@ -6,7 +6,6 @@ export const useCustomers = (autoFetch = false) => {
   const loading = useCustomerStore((state) => state.loading);
   const error = useCustomerStore((state) => state.error);
   const fetchCustomers = useCustomerStore((state) => state.fetchCustomers);
-  const addCustomer = useCustomerStore((state) => state.addCustomer);
 
   useEffect(() => {
     if (autoFetch && customers.length === 0) {
@@ -19,7 +18,6 @@ export const useCustomers = (autoFetch = false) => {
     loading,
     error,
     fetchCustomers,
-    addCustomer,
   };
 };
 export default useCustomers;

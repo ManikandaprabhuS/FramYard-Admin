@@ -4,12 +4,12 @@ import useProducts from '../../hooks/useProducts';
 import DataTable from '../../components/tables/DataTable';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import { Plus, Download, Edit2, Trash2, Search, Filter } from 'lucide-react';
-import { Product, ProductStatus } from '../../types';
+import { Plus, Download, Edit2, Trash2, Search } from 'lucide-react';
+import { Product } from '../../types';
 
 export const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { products, loading, fetchProducts, editProduct, removeProduct } = useProducts(true);
+  const { products, loading, fetchProducts, editProduct } = useProducts(true);
   
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,9 +29,20 @@ export const ProductsPage: React.FC = () => {
 
   // Handle stock computation
   const getStockStatus = (product: Product) => {
-    const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
-    const hasOutOfStock = product.variants.some(v => v.stock === 0);
-    const hasLowStock = product.variants.some(v => v.stock > 0 && v.stock <= 15);
+   const totalStock = (product.variants || []).reduce(
+  (sum, v) => sum + (v.stockQuantity || 0),
+  0
+);
+
+const hasOutOfStock = (product.variants || []).some(
+  v => (v.stockQuantity || 0) === 0
+);
+
+const hasLowStock = (product.variants || []).some(
+  v =>
+    (v.stockQuantity || 0) > 0 &&
+    (v.stockQuantity || 0) <= 15
+);
 
     if (totalStock === 0) return { label: 'Out of Stock', type: 'error' as const };
     if (hasOutOfStock || hasLowStock) return { label: 'Low Stock', type: 'warning' as const };
@@ -42,13 +53,14 @@ export const ProductsPage: React.FC = () => {
   const filteredProducts = products.filter((product) => {
     const matchesSearch = 
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.brandName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.material.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.id.toLowerCase().includes(searchTerm.toLowerCase());
       
     const matchesStatus = 
       statusFilter === 'all' || 
-      product.status === statusFilter;
+      (statusFilter === 'active' && product.isActive) ||
+      (statusFilter === 'draft' && !product.isActive);
 
     return matchesSearch && matchesStatus;
   });
@@ -61,8 +73,13 @@ export const ProductsPage: React.FC = () => {
   const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
 
   const handleStatusToggle = async (product: Product) => {
-    const newStatus: ProductStatus = product.status === 'active' ? 'draft' : 'active';
-    await editProduct(product.id, { status: newStatus });
+    await editProduct(product.id, {
+      name: product.name,
+      description: product.description,
+      material: product.material,
+      availableColors: product.availableColors,
+      isActive: !product.isActive,
+    });
   };
 
   const handleDeleteClick = (id: string) => {
@@ -71,10 +88,8 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (deleteId) {
-      await removeProduct(deleteId);
-      setDeleteId(null);
-    }
+    setDeleteId(null);
+    setIsDeleteOpen(false);
   };
 
   // Reset page when filters change
@@ -212,21 +227,24 @@ export const ProductsPage: React.FC = () => {
             <tr key={product.id} className="hover:bg-surface/40 transition-colors group">
               <td className="px-6 py-4">
                 <div className="w-12 h-12 rounded bg-surface-container overflow-hidden inner-stroke">
-                  <img
-                    src={product.images[0] || 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=400'}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+           <img
+  src={
+    product.images?.[0]?.imageUrl ||
+    "https://via.placeholder.com/300x300?text=No+Image"
+  }
+  alt={product.name}
+  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+/>
                 </div>
               </td>
               <td className="px-6 py-4">
                 <div className="font-semibold text-on-surface group-hover:text-primary transition-colors">{product.name}</div>
-                <div className="text-[11px] text-on-surface-variant font-medium mt-0.5">Brand: {product.brand}</div>
+                <div className="text-[11px] text-on-surface-variant font-medium mt-0.5">Brand: {product.brandName}</div>
               </td>
               <td className="px-6 py-4 text-on-surface-variant">{product.material}</td>
               <td className="px-6 py-4">
                 <div className="flex -space-x-1">
-                  {product.colors.map((color, idx) => (
+                  {(product.availableColors || []).map((color, idx) => (
                     <span
                       key={idx}
                       className="w-4 h-4 rounded-full border border-white ring-1 ring-black/5"
@@ -236,7 +254,7 @@ export const ProductsPage: React.FC = () => {
                   ))}
                 </div>
               </td>
-              <td className="px-6 py-4 text-on-surface-variant">{product.variants.length} Variants</td>
+              <td className="px-6 py-4 text-on-surface-variant">{product.variants?.length || 0} Variants</td>
               <td className="px-6 py-4">
                 <div className="flex justify-center">
                   <Badge type={stockInfo.type}>{stockInfo.label}</Badge>
@@ -247,7 +265,7 @@ export const ProductsPage: React.FC = () => {
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={product.status === 'active'}
+                      checked={product.isActive}
                       onChange={() => handleStatusToggle(product)}
                       className="sr-only peer"
                     />
@@ -255,7 +273,7 @@ export const ProductsPage: React.FC = () => {
                   </label>
                 </div>
               </td>
-              <td className="px-6 py-4 text-on-surface-variant">{new Date(product.createdDate).toLocaleDateString()}</td>
+              <td className="px-6 py-4 text-on-surface-variant">{new Date(product.createdAt).toLocaleDateString()}</td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-1">
                   <button
@@ -284,24 +302,27 @@ export const ProductsPage: React.FC = () => {
           return (
             <div key={product.id} className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm flex gap-4 relative group">
               <div className="w-20 h-20 rounded bg-surface-container overflow-hidden inner-stroke flex-shrink-0">
-                <img
-                  src={product.images[0]}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
+              <img
+  src={
+    product.images?.[0]?.imageUrl ||
+    "https://via.placeholder.com/300x300?text=No+Image"
+  }
+  alt={product.name}
+  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+/>
               </div>
               <div className="flex-1 flex flex-col min-w-0">
                 <div className="flex justify-between items-start gap-2">
                   <h4 className="font-semibold text-sm text-on-surface truncate group-hover:text-primary transition-colors">{product.name}</h4>
                   <Badge type={stockInfo.type}>{stockInfo.label}</Badge>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-0.5">{product.material} • {product.variants.length} Variants</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">{product.material} • {product.variants?.length || 0} Variants</p>
                 <div className="flex items-center gap-3 mt-auto pt-2">
                   <span className="text-[10px] text-on-surface-variant font-semibold bg-surface px-2 py-0.5 rounded border border-outline-variant uppercase">
-                    {product.status}
+                    {product.isActive ? "ACTIVE" : "INACTIVE"}
                   </span>
                   <div className="flex -space-x-1">
-                    {product.colors.map((color, idx) => (
+                    {(product.availableColors || []).map((color, idx) => (
                       <span
                         key={idx}
                         className="w-3.5 h-3.5 rounded-full border border-white"
